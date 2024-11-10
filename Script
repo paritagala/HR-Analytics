@@ -1,0 +1,130 @@
+# Import necessary libraries
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, confusion_matrix, classification_report
+from sklearn.tree import DecisionTreeClassifier
+import warnings
+
+warnings.filterwarnings("ignore")
+
+# Load the dataset
+file_path = 'HR_Analytics.csv'  # Update this path as needed
+hr_data = pd.read_csv(file_path)
+
+# Initial inspection
+print("Dataset Overview:")
+print(hr_data.info())
+print("\nFirst 5 Rows of Data:")
+print(hr_data.head())
+
+# 1. Data Preprocessing and Cleaning
+# Handling missing values
+hr_data = hr_data.dropna()  # You can also use imputation methods if necessary
+
+# Encode categorical variables
+label_encoders = {}
+for column in hr_data.select_dtypes(include=['object']).columns:
+    le = LabelEncoder()
+    hr_data[column] = le.fit_transform(hr_data[column])
+    label_encoders[column] = le
+
+# Feature scaling
+scaler = StandardScaler()
+numerical_cols = hr_data.select_dtypes(include=['int64', 'float64']).columns
+hr_data[numerical_cols] = scaler.fit_transform(hr_data[numerical_cols])
+
+# Feature engineering (optional)
+# For example, creating tenure as a feature if relevant columns exist
+# hr_data['Tenure'] = hr_data['YearsAtCompany']  # Placeholder for tenure calculation
+
+# 2. Exploratory Data Analysis (EDA)
+# Univariate analysis
+plt.figure(figsize=(10, 5))
+sns.histplot(hr_data['Age'], kde=True, bins=30)
+plt.title('Distribution of Age')
+plt.show()
+
+# Multivariate analysis
+plt.figure(figsize=(12, 8))
+sns.heatmap(hr_data.corr(), annot=True, cmap='coolwarm')
+plt.title('Correlation Heatmap')
+plt.show()
+
+# 3. Predictive Modeling
+# Define features (X) and target (y)
+X = hr_data.drop('Turnover', axis=1)  # Replace 'Turnover' with the actual target column name
+y = hr_data['Turnover']
+
+# Split data into training, validation, and test sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Initialize models
+models = {
+    'Logistic Regression': LogisticRegression(),
+    'Decision Tree': DecisionTreeClassifier(),
+    'Random Forest': RandomForestClassifier(),
+    'Gradient Boosting': GradientBoostingClassifier()
+}
+
+# Train and evaluate each model
+results = {}
+for model_name, model in models.items():
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+    results[model_name] = {
+        'Accuracy': accuracy_score(y_test, y_pred),
+        'Precision': precision_score(y_test, y_pred),
+        'Recall': recall_score(y_test, y_pred),
+        'F1 Score': f1_score(y_test, y_pred),
+        'ROC AUC': roc_auc_score(y_test, model.predict_proba(X_test)[:, 1])
+    }
+
+# Display results
+print("\nModel Evaluation Results:")
+for model_name, metrics in results.items():
+    print(f"\n{model_name}:")
+    for metric, value in metrics.items():
+        print(f"{metric}: {value:.4f}")
+
+# Hyperparameter tuning for Random Forest as an example
+param_grid = {
+    'n_estimators': [50, 100, 200],
+    'max_depth': [5, 10, 15],
+    'min_samples_split': [2, 5, 10]
+}
+
+grid_search = GridSearchCV(RandomForestClassifier(), param_grid, cv=5, scoring='f1', n_jobs=-1)
+grid_search.fit(X_train, y_train)
+print("\nBest Hyperparameters for Random Forest:", grid_search.best_params_)
+
+# Evaluate the best model
+best_model = grid_search.best_estimator_
+y_pred_best = best_model.predict(X_test)
+print("\nClassification Report for Best Model (Random Forest):")
+print(classification_report(y_test, y_pred_best))
+print("\nConfusion Matrix:")
+print(confusion_matrix(y_test, y_pred_best))
+
+# Visualizing Confusion Matrix
+sns.heatmap(confusion_matrix(y_test, y_pred_best), annot=True, fmt='d', cmap='Blues')
+plt.title('Confusion Matrix for Best Model (Random Forest)')
+plt.xlabel('Predicted')
+plt.ylabel('Actual')
+plt.show()
+
+# 4. Saving Model Predictions for Dashboard
+# Save predictions to CSV for use in Excel/Power BI
+predictions_df = X_test.copy()
+predictions_df['Actual'] = y_test
+predictions_df['Predicted'] = y_pred_best
+predictions_df.to_csv('predictions_for_dashboard.csv', index=False)
+print("\nPredictions saved to 'predictions_for_dashboard.csv'")
+
+
+
